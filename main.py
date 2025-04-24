@@ -1,4 +1,4 @@
-# 1.4.3 
+# 1.4.8 
 # добавлена статистика 
 # изменена система ввода адреса
 
@@ -10,26 +10,22 @@ from pathlib import Path
 from collections import defaultdict, Counter
 from send2trash import send2trash
 
-# === НАСТРОЙКИ ===
-# Работа 
 
-# STATS_FILE = Path(r)
+# === КОНФИГУРАЦИЯ ===
+MODE = "test"  #"prod"
 
+if MODE == "":
+    STATS_FILE = Path(r"C:\Users\Arhivskaner\Desktop\Akbulak_stats.txt")
+    BASE_ROOT = Path(r"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\1-1")
+else:
+    STATS_FILE = Path(r"C:\Users\Arhivskaner\Desktop\TEST_statistic.txt")
+    BASE_ROOT = Path(r"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\для эксперементов\test")
 
-# Тестирование
+flat_number = int(input("Введите номер квартиры: "))
+flat_id = f"1мкрАкбулак1д{flat_number}кв"
+BASE_DIR = BASE_ROOT / f"{flat_id}_001.pdf"
 
-STATS_FILE = Path(r"C:\Users\Arhivskaner\Desktop\VS code programs\AutoRegitsterP3\TEST_statistic.txt")
-removed_unneeded_count = 0  
-
-# Работа
-# flat_id = f"1мкрАкбулак1д{int(input("Введите номер квартиры: "))}кв"
-# BASE_DIR = Path(fr"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\1-1\{flat_id}_001.pdf")
-
-# Тестирование
-flat_id = f"1мкрАкбулак1д{int(input("Введите номер квартиры: "))}кв"
-BASE_DIR = Path(fr"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\для эксперементов\test\{flat_id}_001.pdf")
-
-
+removed_unneeded_count = 0 
 # Папка для результата
 OUTPUT_DIR = BASE_DIR / "обработанный"
 OUTPUT_DIR.mkdir(exist_ok=True)
