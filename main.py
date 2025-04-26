@@ -1,9 +1,7 @@
-# 1.5.0 
-# Добавлен защита от опечаток 
-# Добавлен список уникальных названий в json файл 
-
-# Есть лишний код или часть нужно исправить
-# нужно добавить цвета или выдиляемость к обрабатывающим текстам и вопросам при показе в терминале
+# v1.5.2 
+# Добавлена оформление текста в терминале
+# v1.5.1 
+# Улучшена система "Защита от опечаток"
 
 import json
 import os
@@ -13,16 +11,20 @@ from pathlib import Path
 from collections import defaultdict, Counter
 from send2trash import send2trash
 import re
+from colorama import Fore, Style, init
 
-# === КОНФИГУРАЦИЯ ===
+# Инициализация colorama для кроссплатформенной работы
+init(autoreset=True)
+
+# ========================== КОНФИГУРАЦИЯ ===========================
 MODE = "test"  # "work"
 
 if MODE == "work":
     STATS_FILE = Path(r"C:\Users\Arhivskaner\Desktop\Akbulak_stats.txt")
     BASE_ROOT = Path(r"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\1-1")
 else:
-    STATS_FILE = Path(r"C:\Users\Arhivskaner\Desktop\TEST_statistic.txt")
-    BASE_ROOT = Path(r"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\для эксперементов\test")
+    STATS_FILE = Path(r"C:\Users\ladsp\Desktop\AutoRegisterDocs\TEST_stats.txt")
+    BASE_ROOT = Path(r"C:\Users\ladsp\Desktop\AutoRegisterDocs\test")
 
 flat_number = int(input("Введите номер квартиры: "))
 flat_id = f"1мкрАкбулак1д{flat_number}кв"
@@ -33,12 +35,19 @@ OUTPUT_DIR = BASE_DIR / "обработанный"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 NAMES_MAP_FILE = "names_map.json"
+# ======================== Конфигурация окончена =========================
 
-if os.path.exists(NAMES_MAP_FILE):
-    with open(NAMES_MAP_FILE, "r", encoding="utf-8") as f:
-        name_map = json.load(f)
-else:
-    name_map = {}
+# ======================= РАБОТА С КАРТОЙ ИМЁН ========================
+print(Fore.CYAN + "📚 Работа с картой имен...")
+def build_alias_map(name_map):
+    alias_to_main = {}
+    for main_name, data in name_map.items():
+        aliases = data.get("aliases", [])
+        for alias in aliases:
+            if alias in alias_to_main:
+                print(Fore.YELLOW + f"⚠️ Предупреждение: альтернативное имя '{alias}' уже связано с '{alias_to_main[alias]}'.")
+            alias_to_main[alias] = main_name
+    return alias_to_main
 
 def add_new_name(new_name):
     new_id = max(name_map.values(), key=lambda x: x['id'])['id'] + 1 if name_map else 1
@@ -49,15 +58,20 @@ def add_new_name(new_name):
     }
     with open(NAMES_MAP_FILE, "w", encoding="utf-8") as f:
         json.dump(name_map, f, ensure_ascii=False, indent=4)
-    print(f"🔑 Новое название '{new_name}' добавлено в список!")
+    print(Fore.GREEN + f"🔑 Новое название '{new_name}' добавлено в список!")
 
-record_stats = True
-if STATS_FILE.exists():
-    with open(STATS_FILE, "r", encoding="utf-8") as f:
-        if flat_id in f.read():
-            print(f"⚠️ Статистика уже существует для: {flat_id}. Новая запись не будет добавлена.")
-            record_stats = False
+if os.path.exists(NAMES_MAP_FILE):
+    with open(NAMES_MAP_FILE, "r", encoding="utf-8") as f:
+        name_map = json.load(f)
+else:
+    name_map = {}
 
+alias_to_main = build_alias_map(name_map)
+# ====================== Работа с картой имён окончена ======================
+
+
+# ========================= РАБОТА С PDF-ФАЙЛАМИ =========================
+print(Fore.CYAN + "📄 Работа с PDF-файлами...")
 def normalize_filename(name):
     return re.sub(r' \(\d+\)', '', name)
 
@@ -66,8 +80,12 @@ skipped_names = []
 
 for file in BASE_DIR.glob("*.pdf"):
     base_name = normalize_filename(file.stem)
+    if base_name in alias_to_main:
+        real_name = alias_to_main[base_name]
+        print(Fore.YELLOW + f"🔄 Найдено альтернативное имя '{base_name}', заменено на '{real_name}'")
+        base_name = real_name
     if base_name.strip() == "-":
-        print(f"🚮 Удалён ненужный файл (для статистики): {file.name}")
+        print(Fore.RED + f"🚮 Удалён ненужный файл (для статистики): {file.name}")
         send2trash(str(file))
         removed_unneeded_count += 1
         continue
@@ -79,7 +97,7 @@ for base_name, files in grouped_files.items():
         destination = OUTPUT_DIR / single_file.name
         shutil.copy2(single_file, destination)
         send2trash(str(single_file))
-        print(f"Перемещён без объединения: {single_file.name}")
+        print(Fore.GREEN + f"↳ Перемещён без объединения: {single_file.name}")
     else:
         merger = PyPDF2.PdfMerger()
         for pdf_path in sorted(files):
@@ -89,45 +107,52 @@ for base_name, files in grouped_files.items():
         merger.close()
         for pdf_path in files:
             send2trash(str(pdf_path))
-        print(f"Объединено: {base_name} → {output_file.name}")
+        print(Fore.GREEN + f"↳ Объединено: {base_name} → {output_file.name}")
+# ======================= Работа с PDF-файлами окончена =======================
 
-    if base_name not in name_map:
-        print(f"Найдено новое название: {base_name}")
-        response = input("Добавить его в список уникальных имен (если тут опечатка или альтернативное имя выберите 'n')? (y/n): ").strip().lower()
 
-        if response == 'y':
-            add_new_name(base_name)
-        else:
-            print(f"Название '{base_name}' определено как опечатка или альтернативное имя.")
-            while True:
-                choice = input("Хотите указать ID оригинального названия сейчас (y), пропустить (s), или добавить как уникальное (a)? ").strip().lower()
+# ======================== РАБОТА С НОВЫМИ ИМЕНАМИ ========================
+print(Fore.CYAN + "🆕 Работа с новыми именами...")
+if base_name not in name_map:
+    print(Fore.YELLOW + f"Найдено новое название: {base_name}")
+    response = input("Добавить его в список уникальных имен (если тут опечатка или альтернативное имя выберите 'n')? (y/n): ").strip().lower()
 
-                if choice == 'y':
-                    try:
-                        original_id = int(input("Укажите id оригинального названия: ").strip())
-                        if original_id in [data["id"] for data in name_map.values()]:
-                            for name, data in name_map.items():
-                                if data["id"] == original_id:
-                                    data.setdefault("aliases", []).append(base_name)
-                                    print(f"✅ '{base_name}' добавлено как альтернативное к '{data['label']}' (ID {original_id})")
-                                    break
-                            break
-                        else:
-                            print("❌ ID не найден. Повторите ввод.")
-                    except ValueError:
-                        print("❌ Введите целое число.")
+    if response == 'y':
+        add_new_name(base_name)
+    else:
+        print(Fore.RED + f"Название '{base_name}' определено как опечатка или альтернативное имя.")
+        while True:
+            choice = input("Хотите указать ID оригинального названия сейчас (y), пропустить (s), или добавить как уникальное (a)? ").strip().lower()
 
-                elif choice == 'a':
-                    add_new_name(base_name)
-                    break
-                elif choice == 's':
-                    print(f"⏭️ Название '{base_name}' пропущено для повторной обработки.")
-                    skipped_names.append(base_name)
-                    break
-                else:
-                    print("Введите 'y', 'a' или 's'.")
+            if choice == 'y':
+                try:
+                    original_id = int(input("Укажите id оригинального названия: ").strip())
+                    if original_id in [data["id"] for data in name_map.values()]:
+                        for name, data in name_map.items():
+                            if data["id"] == original_id:
+                                data.setdefault("aliases", []).append(base_name)
+                                print(Fore.GREEN + f"✅ '{base_name}' добавлено как альтернативное к '{data['label']}' (ID {original_id})")
+                                break
+                        break
+                    else:
+                        print(Fore.RED + "❌ ID не найден. Повторите ввод.")
+                except ValueError:
+                    print(Fore.RED + "❌ Введите целое число.")
 
-# === Повторная обработка пропущенных названий ===
+            elif choice == 'a':
+                add_new_name(base_name)
+                break
+            elif choice == 's':
+                print(Fore.YELLOW + f"⏭️ Название '{base_name}' пропущено для повторной обработки.")
+                skipped_names.append(base_name)
+                break
+            else:
+                print("Введите 'y', 'a' или 's'.")
+# ===================== Работа с новыми именами окончена ======================
+
+
+# ======================== ПОВТОРНАЯ ОБРАБОТКА ИМЁН ========================
+print(Fore.CYAN + "♻️ Повторная обработка имён...")
 if skipped_names:
     print("\n📌 Вы ранее пропустили следующие названия:")
     for skipped in skipped_names:
@@ -145,26 +170,33 @@ if skipped_names:
                         for name, data in name_map.items():
                             if data["id"] == original_id:
                                 data.setdefault("aliases", []).append(skipped)
-                                print(f"✅ '{skipped}' добавлено как альтернативное к '{data['label']}' (ID {original_id})")
+                                print(Fore.GREEN + f"✅ '{skipped}' добавлено как альтернативное к '{data['label']}' (ID {original_id})")
                                 break
                         break
                     else:
-                        print("❌ ID не найден.")
+                        print(Fore.RED + "❌ ID не найден.")
                 except ValueError:
-                    print("❌ Введите целое число.")
+                    print(Fore.RED + "❌ Введите целое число.")
             elif choice == 'a':
                 add_new_name(skipped)
                 break
             elif choice == 's':
-                print(f"⏭️ Название '{skipped}' снова пропущено.")
+                print(Fore.YELLOW + f"⏭️ Название '{skipped}' снова пропущено.")
                 break
             else:
                 print("Введите 'y', 'a' или 's'.")
+# ====================== Повторная обработка имён окончена ======================
 
-with open(NAMES_MAP_FILE, "w", encoding="utf-8") as f:
-    json.dump(name_map, f, ensure_ascii=False, indent=4)
 
-# === Запись статистики ===
+# ========================== ЗАПИСЬ СТАТИСТИКИ ===========================
+print(Fore.CYAN + "📊 Запись статистики...")
+record_stats = True
+if STATS_FILE.exists():
+    with open(STATS_FILE, "r", encoding="utf-8") as f:
+        if flat_id in f.read():
+            print(Fore.YELLOW + f"⚠️ Статистика уже существует для: {flat_id}. Новая запись не будет добавлена.")
+            record_stats = False
+
 if record_stats:
     local_counter = Counter()
     for base_name, files in grouped_files.items():
@@ -184,5 +216,7 @@ if record_stats:
             f.write(f"Удалённых ненужных файлов: {removed_unneeded_count}\n")
 
         f.write("===\n")
+# ======================== Запись статистики окончена ========================
 
-print("✅ Готово! Все PDF-файлы обработаны.")
+
+print(Fore.GREEN + "🎯 Обработка завершена успешно! Все PDF-файлы обработаны.")
