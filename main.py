@@ -1,4 +1,4 @@
-# v1.5.3 
+# v1.5.4 
 # Исправлена повторная проверка имени
 # Исправлено сохранение под неверным именем
 
@@ -32,16 +32,14 @@ logger.addHandler(console_handler)
 # =================== ЛОГГИРОВАНИЕ КОНЕЦ ===================
 
 # ========================== КОНФИГУРАЦИЯ ===========================
-MODE = "test"  # "work"
+MODE = "work"  # "work"
 if MODE == "work":
-    STATS_FILE = Path(r"C:\Users\Arhivskaner\Desktop\Akbulak_stats.txt")
-    BASE_ROOT = Path(r"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\1-1")
+    BASE_ROOT = Path(r"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\Test")
 else:
-    STATS_FILE = Path(r"C:\Users\ladsp\Desktop\AutoRegisterDocs\TEST_stats.txt")
     BASE_ROOT = Path(r"C:\Users\ladsp\Desktop\AutoRegisterDocs\test")
 
 flat_number = int(input("Введите номер квартиры: "))
-flat_id = f"1мкрАкбулак1д{flat_number}кв_001.pdf"
+flat_id = f"1мкрАкбулак2д{flat_number}кв_001.pdf"
 BASE_DIR = BASE_ROOT / flat_id
 removed_unneeded_count = 0
 OUTPUT_DIR = BASE_DIR / "обработанный"
