@@ -1,7 +1,6 @@
-# v1.5.6 
-# Добавлена защита от некорректного номера квартиры
-
-# баг: альтернативные имена не сохраняются при условии где нет новых добавленных уникальных имен
+# v1.5.7 
+# Исправлен баг с некоректными добавлениями альтернативных имен
+# Добавлены: мелкие изменения для удобста
 
 import json
 import os
@@ -49,11 +48,11 @@ if not BASE_DIR.exists():
 
 OUTPUT_DIR = BASE_DIR / "обработанный"
 NAMES_MAP_FILE = "names_map.json"
-
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ======================== Конфигурация окончена =========================
 
 # ======================= РАБОТА С КАРТОЙ ИМЁН ========================
-logger.info(Fore.CYAN + "📚 Работа с картой имен...")
+logger.info(Fore.CYAN + "📚📚📚 Работа с картой имен...")
 def build_alias_map(name_map):
     alias_to_main = {}
     for main_name, data in name_map.items():
@@ -66,7 +65,11 @@ def add_new_name(new_name):
     name_map[new_name] = {"id": new_id, "label": new_name, "aliases": []}
     with open(NAMES_MAP_FILE, "w", encoding="utf-8") as f:
         json.dump(name_map, f, ensure_ascii=False, indent=4)
-    logger.info(Fore.GREEN + f"🔑 Новое название '{new_name}' добавлено в список!")
+    logger.info(Fore.GREEN + f"🔑🔑🔑 Новое название '{new_name}' добавлено в список!")
+
+def save_name_map():
+    with open(NAMES_MAP_FILE, "w", encoding="utf-8") as f:
+        json.dump(name_map, f, ensure_ascii=False, indent=4)
 
 if os.path.exists(NAMES_MAP_FILE):
     with open(NAMES_MAP_FILE, "r", encoding="utf-8") as f:
@@ -78,7 +81,7 @@ alias_to_main = build_alias_map(name_map)
 # ====================== Работа с картой имён окончена ======================
 
 # ========================= РАБОТА С PDF-ФАЙЛАМИ =========================
-logger.info(Fore.CYAN + "📄 Работа с PDF-файлами...")
+logger.info(Fore.CYAN + "📄📄📄 Работа с PDF-файлами...")
 def normalize_filename(name):
     return re.sub(r' \(\d+\)', '', name)
 
@@ -91,50 +94,51 @@ for file in BASE_DIR.glob("*.pdf"):
 
     base_name = normalize_filename(file.stem)
     if base_name.strip() == "-":
-        logger.info(Fore.RED + f"🚮 Удалён ненужный файл (для статистики): {file.name}")
+        logger.info(Fore.RED + f"🚮🚮🚮 Удалён ненужный файл (для статистики): {file.name}")
         send2trash(str(file))
         continue
 
     if base_name in alias_to_main:
         real_name = alias_to_main[base_name]
-        logger.info(Fore.YELLOW + f"🔄 Найдено альтернативное имя '{base_name}', заменено на '{real_name}'")
+        logger.info(Fore.YELLOW + f"🔄🔄🔄 Найдено альтернативное имя '{base_name}', заменено на '{real_name}'")
         base_name = real_name
 
     grouped_files[base_name].append(file)
 
 for base_name, files in grouped_files.items():
     if base_name not in name_map:
-        logger.info(Fore.YELLOW + f"⛔️➞️ Найдено новое название: {base_name}")
+        logger.info(Fore.YELLOW + f"⛔️⛔️⛔️➞️ Найдено новое название: {base_name}")
         response = input("Добавить его в список уникальных имен (y/n)? ").strip().lower()
-        if response == 'y':
+        if response in ['y','н']:
             add_new_name(base_name)
         else:
-            logger.info(Fore.RED + f"❗ Название '{base_name}' определено как ошибочное или альтернативное.")
+            logger.info(Fore.RED + f"❗❗❗ Название '{base_name}' определено как ошибочное или альтернативное.")
             while True:
                 choice = input("Указать ID оригинала (y), пропустить (s), добавить как уникальное (a)? ").strip().lower()
-                if choice == 'y':
+                if choice in  ['y','н']:
                     try:
                         original_id = int(input("Укажите id: ").strip())
                         found = False
                         for name, data in name_map.items():
                             if data["id"] == original_id:
                                 data.setdefault("aliases", []).append(base_name)
+                                save_name_map()
                                 alias_to_main = build_alias_map(name_map)
                                 base_name = alias_to_main.get(base_name, base_name)
-                                logger.info(Fore.GREEN + f"✅ '{base_name}' добавлено как альтернативное к '{data['label']}'")
+                                logger.info(Fore.GREEN + f"✅✅✅ '{base_name}' добавлено как альтернативное к '{data['label']}'")
                                 found = True
                                 break
                         if found:
                             break
                         else:
-                            logger.info(Fore.RED + "❌ ID не найден.")
+                            logger.info(Fore.RED + "❌❌❌ ID не найден.")
                     except ValueError:
-                        logger.info(Fore.RED + "❌ Введите целое число.")
-                elif choice == 'a':
+                        logger.info(Fore.RED + "❌❌❌ Введите целое число.")
+                elif choice in ['a','ф']:
                     add_new_name(base_name)
                     break
-                elif choice == 's':
-                    logger.info(Fore.YELLOW + f"⏭️ '{base_name}' пропущен.")
+                elif choice in ['s','ы']:
+                    logger.info(Fore.YELLOW + f"⏭️⏭️⏭️ '{base_name}' пропущен.")
                     skipped_names.append(base_name)
                     break
                 else:
@@ -162,36 +166,37 @@ for base_name, files in grouped_files.items():
 # ======================= Работа с PDF-файлами окончена =======================
 
 # ======================== ПОВТОРНАЯ ОБРАБОТКА ИМЁН ========================
-logger.info(Fore.CYAN + "♻️ Повторная обработка имён...")
+logger.info(Fore.CYAN + "♻️♻️♻️ Повторная обработка имён...")
 if skipped_names:
-    print("\n📌 Вы ранее пропустили следующие названия:")
+    print("\n📌📌📌 Вы ранее пропустили следующие названия:")
     for skipped in skipped_names:
         print(f" - {skipped}")
     for skipped in skipped_names:
-        print(f"\n🔁 Название: {skipped}")
+        print(f"\n🔁🔁🔁 Название: {skipped}")
         while True:
             choice = input("Указать ID оригинала (y), добавить как уникальное (a), пропустить снова (s): ").strip().lower()
-            if choice == 'y':
+            if choice in ['y','н']:
                 try:
                     original_id = int(input("Укажите id оригинального названия: ").strip())
                     found = False
                     for name, data in name_map.items():
                         if data["id"] == original_id:
                             data.setdefault("aliases", []).append(skipped)
-                            logger.info(Fore.GREEN + f"✅ '{skipped}' добавлено как альтернативное к '{data['label']}' (ID {original_id})")
+                            save_name_map()
+                            logger.info(Fore.GREEN + f"✅✅✅ '{skipped}' добавлено как альтернативное к '{data['label']}' (ID {original_id})")
                             found = True
                             break
                     if found:
                         break
                     else:
-                        logger.info(Fore.RED + "❌ ID не найден.")
+                        logger.info(Fore.RED + "❌❌❌ ID не найден.")
                 except ValueError:
-                    logger.info(Fore.RED + "❌ Введите целое число.")
-            elif choice == 'a':
+                    logger.info(Fore.RED + "❌❌❌ Введите целое число.")
+            elif choice in ['a','ф']:
                 add_new_name(skipped)
                 break
-            elif choice == 's':
-                logger.info(Fore.YELLOW + f"⏭️ Название '{skipped}' снова пропущено.")
+            elif choice in ['s','ы']:
+                logger.info(Fore.YELLOW + f"⏭️⏭️⏭️ Название '{skipped}' снова пропущено.")
                 break
             else:
                 print("Введите 'y', 'a' или 's'.")
