@@ -1,7 +1,6 @@
-# v1.5.8 
+# v1.5.9 
 
-# Улучшен карта имен
-# добавлена функция сообщаяющий о файлах больше 15 Мб 
+# добавлена функция разеделение на 20 страниц за 1 файл 
 
 import json
 import os
@@ -40,7 +39,7 @@ else:
     BASE_ROOT = Path(r"C:\Users\ladsp\Desktop\AutoRegisterDocs\test")
 
 flat_number = int(input("Введите номер квартиры: "))
-flat_id = f"1мкрАкбулак5д{flat_number}кв_001.pdf"
+flat_id = f"1мкрАкбулак7д{flat_number}кв_001"  
 BASE_DIR = BASE_ROOT / flat_id
 
 if not BASE_DIR.exists():
@@ -82,6 +81,8 @@ alias_to_main = build_alias_map(name_map)
 # ====================== Работа с картой имён окончена ======================
 
 # ========================= РАБОТА С PDF-ФАЙЛАМИ =========================
+MAX_PAGES = 20 
+
 logger.info(Fore.CYAN + "📄📄📄 Работа с PDF-файлами...")
 def normalize_filename(name):
     return re.sub(r' \(\d+\)', '', name)
@@ -149,21 +150,61 @@ for base_name, files in grouped_files.items():
         base_name = alias_to_main[base_name]
 
     if len(files) == 1:
-        single_file = files[0]
-        destination = OUTPUT_DIR / f"{base_name}.pdf"
-        shutil.copy2(single_file, destination)
-        send2trash(str(single_file))
-        logger.info(Fore.GREEN + f"🗹 Перемещён: {single_file.name} → {destination.name}")
-    else:
-        merger = PyPDF2.PdfMerger()
-        for pdf_path in sorted(files):
-            merger.append(str(pdf_path))
-        output_file = OUTPUT_DIR / f"{base_name}.pdf"
-        merger.write(str(output_file))
+        single = files[0]
+        dest = OUTPUT_DIR / f"{base_name}.pdf"
+        shutil.copy2(single, dest)
+        send2trash(str(single))
+        logger.info(Fore.GREEN + f"🗹 Перемещён: {single.name} → {dest.name}")
+        continue
+
+    part = 1
+    current_pages = 0
+    merger = PyPDF2.PdfMerger()
+    used_files = []  # <--- добавляем список для последующего удаления
+
+    for pdf_path in sorted(files):
+        reader = PyPDF2.PdfReader(pdf_path)
+        pages = len(reader.pages)
+
+        # Проверка превышения лимита страниц
+        if current_pages + pages > MAX_PAGES:
+            output = OUTPUT_DIR / f"{base_name}_part{part}.pdf"
+            merger.write(str(output))
+            merger.close()
+            logger.info(Fore.YELLOW + f"📄 Создан файл: {output.name} ({current_pages} стр.)")
+
+            # ✅ Удаляем только после закрытия merger — файл больше не занят
+            for f in used_files:
+                try:
+                    send2trash(str(f))
+                except PermissionError:
+                    logger.warning(Fore.RED + f"⚠️ Не удалось удалить (занят): {f.name}")
+            used_files.clear()
+
+            # Начинаем новый кусок
+            part += 1
+            current_pages = 0
+            merger = PyPDF2.PdfMerger()
+
+        merger.append(str(pdf_path))
+        current_pages += pages
+        used_files.append(pdf_path)
+
+    # Финальный кусок
+    if current_pages > 0:
+        suffix = f"_part{part}" if part > 1 else ""
+        output = OUTPUT_DIR / f"{base_name}{suffix}.pdf"
+        merger.write(str(output))
         merger.close()
-        for pdf_path in files:
-            send2trash(str(pdf_path))
-        logger.info(Fore.GREEN + f"🗸 Объединёно: {base_name} → {output_file.name}")
+
+        # ✅ Удаляем оставшиеся файлы
+        for f in used_files:
+            try:
+                send2trash(str(f))
+            except PermissionError:
+                logger.warning(Fore.RED + f"⚠️ Не удалось удалить (занят): {f.name}")
+
+        logger.info(Fore.GREEN + f"✅ Финальный файл: {output.name} ({current_pages} стр.)")
 # ======================= Работа с PDF-файлами окончена =======================
 
 # ======================== ПОВТОРНАЯ ОБРАБОТКА ИМЁН ========================
@@ -206,7 +247,7 @@ if skipped_names:
 # ======================== ПРОВЕРКА РАЗМЕРА PDF ========================
 logger.info(Fore.CYAN + "📏📏📏 Проверка размеров PDF файлов 📏📏📏\n")
 
-MAX_SIZE_KB = 14500
+MAX_SIZE_KB = 13000
 
 for pdf_file in OUTPUT_DIR.glob("*.pdf"):
     size_kb = os.path.getsize(pdf_file) // 1024

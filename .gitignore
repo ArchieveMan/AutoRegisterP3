@@ -1,0 +1,7 @@
+# Created by venv; see https://docs.python.org/3/library/venv.html
+.vscode/
+venv/
+cut_pdf.py 
+naming_rate.py 
+pdf_name_stats.txt 
+test.py 
