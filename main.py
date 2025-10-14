@@ -247,7 +247,7 @@ if skipped_names:
 # ======================== ПРОВЕРКА РАЗМЕРА PDF ========================
 logger.info(Fore.CYAN + "📏📏📏 Проверка размеров PDF файлов 📏📏📏\n")
 
-MAX_SIZE_KB = 13000
+MAX_SIZE_KB = 14000
 
 for pdf_file in OUTPUT_DIR.glob("*.pdf"):
     size_kb = os.path.getsize(pdf_file) // 1024
