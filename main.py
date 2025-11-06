@@ -1,16 +1,18 @@
-# v1.5.9 
+# v1.6.0 
 
-# добавлена функция разеделение на 20 страниц за 1 файл 
+# добавлена массовый и одиночный режим работы
+# добавлена принудительная остановка программы 
+# мелкие улучшения и улучшенная структура
 
 import json
 import os
 import shutil
 import PyPDF2
 from pathlib import Path
-from collections import defaultdict, Counter
+from collections import defaultdict
 from send2trash import send2trash
 import re
-from colorama import Fore, Style, init # type: ignore
+from colorama import Fore, init # type: ignore
 import logging
 
 # Инициализация colorama для кроссплатформенной работы
@@ -32,23 +34,59 @@ logger.addHandler(console_handler)
 # =================== ЛОГГИРОВАНИЕ КОНЕЦ ===================
 
 # ========================== КОНФИГУРАЦИЯ ===========================
-MODE = "work"  
-if MODE == "work":
-    BASE_ROOT = Path(r"C:\Users\Arhivskaner\Desktop\1Мкр Сжатый\Test")
-else:
+PATH_MODE = "work"  
+
+if PATH_MODE == "work":
+    BASE_ROOT = Path(r"C:\Users\Arhivskaner\Desktop\Обработка скана\Test")
+elif PATH_MODE == "test":
     BASE_ROOT = Path(r"C:\Users\ladsp\Desktop\AutoRegisterDocs\test")
 
-flat_number = int(input("Введите номер квартиры: "))
-flat_id = f"1мкрАкбулак7д{flat_number}кв_001"  
-BASE_DIR = BASE_ROOT / flat_id
+MAX_PAGES = 20  # лимит страниц на 1 файл
+MAX_SIZE_KB = 14000 #  порог предупреждения максимального размера
 
-if not BASE_DIR.exists():
-    logger.error(Fore.RED + f"❌ Указанный адрес не существует: {BASE_DIR}")
-    exit(1)
 
-OUTPUT_DIR = BASE_DIR / "обработанный"
+# Режим работы
+MODE = 'massive'
+# MODE = 'single' 
+
+area_name = "1мкрАкбулак"
+home_number = "14"  # <====   Номер дома
+
+# ========================== ВЫБОР РЕЖИМА ===========================
+def process_flat(flat_number: int):
+    """
+    Выполняет обработку одной квартиры (вынесено в отдельную функцию)
+    """
+    flat_id = f"{area_name}{home_number}д{flat_number}кв_001"
+    base_dir = BASE_ROOT / flat_id
+
+    if not base_dir.exists():
+        logger.warning(Fore.RED + f"⏭️ Квартира {flat_number} пропущена — путь не найден: {base_dir}")
+        return None  # Пропуск, если папка отсутствует
+
+    logger.info(Fore.CYAN + f"🏠 Обработка квартиры №{flat_number}")
+    output_dir = base_dir / "обработанный"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return base_dir, output_dir, flat_number
+
+# ------------------ выбор режима ------------------
+if MODE == 'single':
+    flat_number = int(input("Введите номер квартиры: "))
+    flat_id = f"{area_name}{home_number}д{flat_number}кв_001"
+    BASE_DIR = BASE_ROOT / flat_id
+    OUTPUT_DIR = BASE_DIR / "обработанный"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    flats_to_process = [flat_number]
+
+elif MODE == 'massive':
+    flats_to_process = [i for i in range(1, 121) if (BASE_ROOT / f"{area_name}{home_number}д{i}кв_001").exists()]
+    logger.info(Fore.CYAN + f"🔍 Найдено {len(flats_to_process)} квартир(ы) для обработки: {flats_to_process}")
+    if not flats_to_process:
+        logger.error(Fore.RED + "❌ Не найдено ни одной квартиры для обработки!")
+        exit(1)
+
+# файл карты имён
 NAMES_MAP_FILE = "names_map.json"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ======================== Конфигурация окончена =========================
 
 # ======================= РАБОТА С КАРТОЙ ИМЁН ========================
@@ -79,182 +117,158 @@ else:
 
 alias_to_main = build_alias_map(name_map)
 # ====================== Работа с картой имён окончена ======================
+try:
+    # ===================== ОБРАБОТКА ВСЕХ КВАРТИР =====================
+    for flat_number in flats_to_process:
+        skipped_global = defaultdict(list)
+        result = process_flat(flat_number)
+        if not result:
+            continue
+        BASE_DIR, OUTPUT_DIR, flat_number = result
 
-# ========================= РАБОТА С PDF-ФАЙЛАМИ =========================
-MAX_PAGES = 20 
+        # ========================= РАБОТА С PDF-ФАЙЛАМИ =========================
+        logger.info(Fore.CYAN + f"📄📄📄 Работа с PDF-файлами... ({flat_number})")
 
-logger.info(Fore.CYAN + "📄📄📄 Работа с PDF-файлами...")
-def normalize_filename(name):
-    return re.sub(r' \(\d+\)', '', name)
+        def normalize_filename(name):
+            return re.sub(r' \(\d+\)', '', name)
 
-grouped_files = defaultdict(list)
-skipped_names = []
+        grouped_files = defaultdict(list)
+        skipped_names = []
 
-for file in BASE_DIR.glob("*.pdf"):
-    if file.parent == OUTPUT_DIR:
-        continue
+        for file in BASE_DIR.glob("*.pdf"):
+            if file.parent == OUTPUT_DIR:
+                continue
 
-    base_name = normalize_filename(file.stem)
-    if base_name.strip() == "-":
-        logger.info(Fore.RED + f"🚮🚮🚮 Удалён ненужный файл (для статистики): {file.name}")
-        send2trash(str(file))
-        continue
+            base_name = normalize_filename(file.stem)
+            if base_name.strip() == "-":
+                logger.info(Fore.RED + f"🚮🚮🚮 Удалён ненужный файл (для статистики): {file.name}")
+                send2trash(str(file))
+                continue
 
-    if base_name in alias_to_main:
-        real_name = alias_to_main[base_name]
-        logger.info(Fore.YELLOW + f"🔄🔄🔄 Найдено альтернативное имя '{base_name}', заменено на '{real_name}'")
-        base_name = real_name
+            if base_name in alias_to_main:
+                real_name = alias_to_main[base_name]
+                logger.info(Fore.YELLOW + f"🔄🔄🔄 Найдено альтернативное имя '{base_name}', заменено на '{real_name}'")
+                base_name = real_name
 
-    grouped_files[base_name].append(file)
+            grouped_files[base_name].append(file)
 
-for base_name, files in grouped_files.items():
-    if base_name not in name_map:
-        logger.info(Fore.YELLOW + f"⛔️⛔️⛔️➞️ Найдено новое название: {base_name}")
-        response = input("Добавить его в список уникальных имен (y/n)? ").strip().lower()
-        if response in ['y','н']:
-            add_new_name(base_name)
-        else:
-            logger.info(Fore.RED + f"❗❗❗ Название '{base_name}' определено как ошибочное или альтернативное.")
-            while True:
-                choice = input("Указать ID оригинала (y), пропустить (s), добавить как уникальное (a)? ").strip().lower()
-                if choice in  ['y','н']:
-                    try:
-                        original_id = int(input("Укажите id: ").strip())
-                        found = False
-                        for name, data in name_map.items():
-                            if data["id"] == original_id:
-                                data.setdefault("aliases", []).append(base_name)
-                                save_name_map()
-                                alias_to_main = build_alias_map(name_map)
-                                base_name = alias_to_main.get(base_name, base_name)
-                                logger.info(Fore.GREEN + f"✅✅✅ '{base_name}' добавлено как альтернативное к '{data['label']}'")
-                                found = True
-                                break
-                        if found:
-                            break
-                        else:
-                            logger.info(Fore.RED + "❌❌❌ ID не найден.")
-                    except ValueError:
-                        logger.info(Fore.RED + "❌❌❌ Введите целое число.")
-                elif choice in ['a','ф']:
+        for base_name, files in grouped_files.items():
+            if base_name not in name_map:
+                logger.info(Fore.YELLOW + f"⛔️ Найдено новое название: {base_name}")
+                response = input("Добавить (y/н), указать ID (число) или пропустить (s/ы): ").strip().lower()
+
+                # --- добавить как уникальное ---
+                if response in ['y', 'н']:
                     add_new_name(base_name)
-                    break
-                elif choice in ['s','ы']:
-                    logger.info(Fore.YELLOW + f"⏭️⏭️⏭️ '{base_name}' пропущен.")
-                    skipped_names.append(base_name)
-                    break
-                else:
-                    print("Введите 'y', 'a' или 's'.")
 
-    if base_name in alias_to_main:
-        base_name = alias_to_main[base_name]
-
-    if len(files) == 1:
-        single = files[0]
-        dest = OUTPUT_DIR / f"{base_name}.pdf"
-        shutil.copy2(single, dest)
-        send2trash(str(single))
-        logger.info(Fore.GREEN + f"🗹 Перемещён: {single.name} → {dest.name}")
-        continue
-
-    part = 1
-    current_pages = 0
-    merger = PyPDF2.PdfMerger()
-    used_files = []  # <--- добавляем список для последующего удаления
-
-    for pdf_path in sorted(files):
-        reader = PyPDF2.PdfReader(pdf_path)
-        pages = len(reader.pages)
-
-        # Проверка превышения лимита страниц
-        if current_pages + pages > MAX_PAGES:
-            output = OUTPUT_DIR / f"{base_name}_part{part}.pdf"
-            merger.write(str(output))
-            merger.close()
-            logger.info(Fore.YELLOW + f"📄 Создан файл: {output.name} ({current_pages} стр.)")
-
-            # ✅ Удаляем только после закрытия merger — файл больше не занят
-            for f in used_files:
-                try:
-                    send2trash(str(f))
-                except PermissionError:
-                    logger.warning(Fore.RED + f"⚠️ Не удалось удалить (занят): {f.name}")
-            used_files.clear()
-
-            # Начинаем новый кусок
-            part += 1
-            current_pages = 0
-            merger = PyPDF2.PdfMerger()
-
-        merger.append(str(pdf_path))
-        current_pages += pages
-        used_files.append(pdf_path)
-
-    # Финальный кусок
-    if current_pages > 0:
-        suffix = f"_part{part}" if part > 1 else ""
-        output = OUTPUT_DIR / f"{base_name}{suffix}.pdf"
-        merger.write(str(output))
-        merger.close()
-
-        # ✅ Удаляем оставшиеся файлы
-        for f in used_files:
-            try:
-                send2trash(str(f))
-            except PermissionError:
-                logger.warning(Fore.RED + f"⚠️ Не удалось удалить (занят): {f.name}")
-
-        logger.info(Fore.GREEN + f"✅ Финальный файл: {output.name} ({current_pages} стр.)")
-# ======================= Работа с PDF-файлами окончена =======================
-
-# ======================== ПОВТОРНАЯ ОБРАБОТКА ИМЁН ========================
-logger.info(Fore.CYAN + "♻️♻️♻️ Повторная обработка имён...")
-if skipped_names:
-    print("\n📌📌📌 Вы ранее пропустили следующие названия:")
-    for skipped in skipped_names:
-        print(f" - {skipped}")
-    for skipped in skipped_names:
-        print(f"\n🔁🔁🔁 Название: {skipped}")
-        while True:
-            choice = input("Указать ID оригинала (y), добавить как уникальное (a), пропустить снова (s): ").strip().lower()
-            if choice in ['y','н']:
-                try:
-                    original_id = int(input("Укажите id оригинального названия: ").strip())
+                # --- указать ID ---
+                elif response.isdigit():
+                    original_id = int(response)
                     found = False
                     for name, data in name_map.items():
                         if data["id"] == original_id:
-                            data.setdefault("aliases", []).append(skipped)
+                            data.setdefault("aliases", []).append(base_name)
                             save_name_map()
-                            logger.info(Fore.GREEN + f"✅✅✅ '{skipped}' добавлено как альтернативное к '{data['label']}' (ID {original_id})")
+                            alias_to_main = build_alias_map(name_map)
+                            base_name = alias_to_main.get(base_name, base_name)
+                            logger.info(Fore.GREEN + f"✅ '{base_name}' добавлено как альтернативное к '{data['label']}' (ID {original_id})")
                             found = True
                             break
-                    if found:
-                        break
-                    else:
-                        logger.info(Fore.RED + "❌❌❌ ID не найден.")
-                except ValueError:
-                    logger.info(Fore.RED + "❌❌❌ Введите целое число.")
-            elif choice in ['a','ф']:
-                add_new_name(skipped)
-                break
-            elif choice in ['s','ы']:
-                logger.info(Fore.YELLOW + f"⏭️⏭️⏭️ Название '{skipped}' снова пропущено.")
-                break
-            else:
-                print("Введите 'y', 'a' или 's'.")
-# ======================== ПОВТОРНАЯ ОБРАБОТКА ИМЁН КОНЕЦ ====================
+                    if not found:
+                        logger.error(Fore.RED + f"❌ ID {original_id} не найден в карте имён.")
 
-# ======================== ПРОВЕРКА РАЗМЕРА PDF ========================
-logger.info(Fore.CYAN + "📏📏📏 Проверка размеров PDF файлов 📏📏📏\n")
+                # --- пропустить ---
+                elif response in ['s', 'ы']:
+                    flat_id = f"{area_name}{home_number}д{flat_number}кв_001"
+                    logger.info(Fore.RED + f"⏭ '{base_name}' пропущен (из {flat_id})")
+                    skipped_global[flat_id].append(base_name)
 
-MAX_SIZE_KB = 14000
+                # --- некорректный ввод ---
+                else:
+                    logger.warning(Fore.RED + f"⚠️ Неверный ввод. Используйте 'y', 's' или число (ID). Пропуск по умолчанию.")
+                    flat_id = f"{area_name}{home_number}д{flat_number}кв_001"
+                    skipped_global[flat_id].append(base_name)
 
-for pdf_file in OUTPUT_DIR.glob("*.pdf"):
-    size_kb = os.path.getsize(pdf_file) // 1024
-    if size_kb > MAX_SIZE_KB:
-        logger.error(Fore.RED + f"⚠️ ⚠️ ⚠️  Файл '{pdf_file.name}' превышает {MAX_SIZE_KB} Кб! ({size_kb} Кб) ⚠️ ⚠️ ⚠️ \n")
-# ======================== ПРОВЕРКА РАЗМЕРА PDF КОНЕЦ ========================
+            if base_name in alias_to_main:
+                base_name = alias_to_main[base_name]
 
-# ====================== Повторная обработка имён окончена ======================
-logger.info(Fore.GREEN + "🌟 Обработка завершена успешно! Все PDF-файлы обработаны.")
-logger.info(Fore.CYAN + f"==============================={flat_number}===============================")
+            if len(files) == 1:
+                single = files[0]
+                dest = OUTPUT_DIR / f"{base_name}.pdf"
+                shutil.copy2(single, dest)
+                send2trash(str(single))
+                logger.info(Fore.GREEN + f"🗹 Перемещён: {single.name} → {dest.name}")
+                continue
+
+            part = 1
+            current_pages = 0
+            merger = PyPDF2.PdfMerger()
+            used_files = []
+
+            for pdf_path in sorted(files):
+                reader = PyPDF2.PdfReader(pdf_path)
+                pages = len(reader.pages)
+
+                if current_pages + pages > MAX_PAGES:
+                    output = OUTPUT_DIR / f"{base_name}_part{part}.pdf"
+                    merger.write(str(output))
+                    merger.close()
+                    logger.info(Fore.YELLOW + f"📄 Создан файл: {output.name} ({current_pages} стр.)")
+
+                    for f in used_files:
+                        try:
+                            send2trash(str(f))
+                        except PermissionError:
+                            logger.warning(Fore.RED + f"⚠️ Не удалось удалить (занят): {f.name}")
+                    used_files.clear()
+
+                    part += 1
+                    current_pages = 0
+                    merger = PyPDF2.PdfMerger()
+
+                merger.append(str(pdf_path))
+                current_pages += pages
+                used_files.append(pdf_path)
+
+            if current_pages > 0:
+                suffix = f"_part{part}" if part > 1 else ""
+                output = OUTPUT_DIR / f"{base_name}{suffix}.pdf"
+                merger.write(str(output))
+                merger.close()
+
+                for f in used_files:
+                    try:
+                        send2trash(str(f))
+                    except PermissionError:
+                        logger.warning(Fore.RED + f"⚠️ Не удалось удалить (занят): {f.name}")
+
+                logger.info(Fore.GREEN + f"✅ Финальный файл: {output.name} ({current_pages} стр.)")
+
+        # ======================== ПРОВЕРКА РАЗМЕРА PDF ========================
+        logger.info(Fore.CYAN + "📏 Проверка размеров PDF файлов 📏\n")
+
+        for pdf_file in OUTPUT_DIR.glob("*.pdf"):
+            size_kb = os.path.getsize(pdf_file) // 1024
+            if size_kb > MAX_SIZE_KB:
+                logger.error(Fore.RED + f"⚠️ Файл '{pdf_file.name}' превышает {MAX_SIZE_KB} Кб! ({size_kb} Кб)\n")
+
+        logger.info(Fore.GREEN + f"🌟 Квартира №{flat_number} обработана успешно.")
+        logger.info(Fore.CYAN + f"==============================={flat_number}===============================")
+
+    # ===================== ВСЕ КВАРТИРЫ ОБРАБОТАНЫ =====================
+    logger.info(Fore.GREEN + "🌟 Массовая обработка завершена успешно!")
+
+except KeyboardInterrupt:
+    logger.error(Fore.RED + "\n🛑 Операция прервана пользователем (Ctrl + C).")
+    logger.info(Fore.CYAN + "💾 Все промежуточные данные сохранены.")
+    exit(0)
+
+# ==================== ОТЧЁТ О ПРОПУЩЕННЫХ ИМЁНАХ ====================
+if skipped_global:
+    logger.info(Fore.RED + "\n🚨🚨🚨 Итог: пропущенные имена 🚨🚨🚨")
+    for flat_id, names in skipped_global.items():
+        joined = '", "'.join(names)
+        logger.info(Fore.RED + f'📂 {flat_id}: "{joined}"')
+else:
+    logger.info(Fore.GREEN + "✅ Все имена обработаны без пропусков!")
+
