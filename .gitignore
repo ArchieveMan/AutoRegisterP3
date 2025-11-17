@@ -1,11 +1,10 @@
 # Created by venv; see https://docs.python.org/3/library/venv.html
+__pycache__
 .vscode/
 venv/
-cut_pdf.py 
 naming_rate.py 
-pdf_name_stats.txt 
+pdf_name_stats-v2.txt
+pdf_name_stats-v1.txt  
 test.py 
-clipboard_text.py 
 desktop.ini
-all_files_to_once.py
-delete_emty_pages_test1.py 
+Результаты_скана_до_16.11.2025
