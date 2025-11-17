@@ -1,12 +1,9 @@
 import shutil
 from pathlib import Path
 from PyPDF2 import PdfReader, PdfWriter
-# from main import area_name, home_number
-
-# SOURCE_DIR = Path(r"C:\Users\Arhivskaner\Desktop\scan") / area_name / f"{area_name} {home_number} Дом"
 
 # ==== ПУТИ ====
-SOURCE_DIR = Path(r"C:\Users\Arhivskaner\Desktop\scan\1мкрАкбулак\1мкрАкбулак 15 Дом")
+SOURCE_DIR = Path(r"E:\\1мкрАкбулак\1мкрАкбулак 1 Дом")
 TEMP_COPY_DIR = Path(r"C:\Users\Arhivskaner\Desktop\scan\_temp_copy")
 OUTPUT_DIR = Path(r"C:\Users\Arhivskaner\Desktop\Обработка скана\Резервный")
 
