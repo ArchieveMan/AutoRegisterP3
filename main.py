@@ -47,7 +47,7 @@ MODE = 'massive'
 
 # НАСТРОЙКИ АДРЕСА 
 area_name = "1мкрАкбулак"            # <====  Название района
-home_number = "16"                   # <====  Номер дома
+home_number = "18"                   # <====  Номер дома
 # ========================== ВЫБОР РЕЖИМА ===========================
 def process_flat(flat_number: int):
     """
@@ -113,6 +113,7 @@ else:
 
 alias_to_main = build_alias_map(name_map)
 # ====================== Работа с картой имён окончена ======================
+skipped_list = []
 try:
     # ===================== ОБРАБОТКА ВСЕХ КВАРТИР =====================
     for flat_number in flats_to_process:
@@ -177,8 +178,8 @@ try:
                 elif response in ['s', 'ы']:
                     flat_id = f"{area_name}{home_number}д{flat_number}кв_001"
                     logger.info(Fore.RED + f"⏭ '{base_name}' пропущен (из {flat_id})")
-                    skipped_global[flat_id].append(base_name)
-
+                    skipped_list.append(f"'{base_name}' пропущен (из {flat_id})")
+                    continue
                 # --- некорректный ввод ---
                 else:
                     logger.warning(Fore.RED + f"⚠️ Неверный ввод. Используйте 'y', 's' или число (ID). Пропуск по умолчанию.")
@@ -260,10 +261,9 @@ except KeyboardInterrupt:
     exit(0)
 
 # ==================== ОТЧЁТ О ПРОПУЩЕННЫХ ИМЁНАХ ====================
-if skipped_global:
+if skipped_list:
     logger.info(Fore.RED + "\n🚨🚨🚨 Итог: пропущенные имена 🚨🚨🚨")
-    for flat_id, names in skipped_global.items():
-        joined = '", "'.join(names)
-        logger.info(Fore.RED + f'📂 {flat_id}: "{joined}"')
+    for line in skipped_list:
+        logger.info(Fore.RED + f"📂 {line}")
 else:
     logger.info(Fore.GREEN + "✅ Все имена обработаны без пропусков!")

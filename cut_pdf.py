@@ -3,9 +3,10 @@ from pathlib import Path
 from PyPDF2 import PdfReader, PdfWriter
 
 # ==== ПУТИ ====
-SOURCE_DIR = Path(r"E:\\1мкрАкбулак\1мкрАкбулак 1 Дом")
-TEMP_COPY_DIR = Path(r"C:\Users\Arhivskaner\Desktop\scan\_temp_copy")
-OUTPUT_DIR = Path(r"C:\Users\Arhivskaner\Desktop\Обработка скана\Резервный")
+# SOURCE_DIR = Path(r"C:\Users\Arhivskaner\Desktop\scan\1мкрАкбулак\1мкрАкбулак 15 Дом")
+SOURCE_DIR = Path(r"E:\\1мкрАкбулак\1мкрАкбулак 41 Дом")
+TEMP_COPY_DIR = Path(r"C:\Users\Arhivskaner\Desktop\Обработка скана\_temp_copy")
+OUTPUT_DIR = Path(r"C:\Users\Arhivskaner\Desktop\Обработка скана\Резервный\1-41")
 
 # ==== ПОДГОТОВКА ====
 if TEMP_COPY_DIR.exists():

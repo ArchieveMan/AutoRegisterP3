@@ -2,16 +2,16 @@ import os
 import shutil
 import numpy as np
 from pdf2image import convert_from_path
-from main import home_number
+
 # === НАСТРОЙКИ ===
-base_folder = r"C:\Users\Arhivskaner\Desktop\Обработка скана\Резервный"
+base_folder = r"C:\Users\Arhivskaner\Desktop\Обработка скана\Резервный\1-18"
 poppler_path = r"C:\Program Files\poppler-25.07.0\Library\bin"
 
 small_file_size_kb = 100       # порог маленького файла
 white_thresh_small = 0.90      # если меньше 100 КБ
 white_thresh_large = 0.98      # если больше 100 КБ
 dpi = 100                      # DPI при конвертации страниц
-
+home_number = "18"
 # === ФУНКЦИИ ===
 def calculate_white_ratio(pdf_path):
     """Вычисляет процент белых пикселей на первой странице PDF"""

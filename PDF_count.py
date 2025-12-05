@@ -35,8 +35,8 @@ class RightClickButton(QtWidgets.QPushButton):
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
-        MainWindow.setObjectName("MainWindow") # узнать почему не отображается 
-        MainWindow.resize(560, 650)            # узнать почему не отображается 
+        MainWindow.setObjectName("MainWindow")  
+        MainWindow.resize(560, 650)             
 
         self.centralwidget = QtWidgets.QWidget(parent=MainWindow)
         self.centralwidget.setObjectName("centralwidget")
